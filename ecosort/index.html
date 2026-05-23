@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>EcoSort — Garbage Classification</title>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+  :root{--bg:#0a1410;--bg-elev:#0f1d17;--card:#13241c;--card-hi:#182e23;--line:#1f3b2d;--leaf:#34d399;--leaf-dim:#1f8a63;--amber:#fbbf24;--text:#e8f5ee;--text-dim:#8aa899;--text-faint:#5a7567;--danger:#f87171;--r:20px;}
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;overflow-x:hidden;-webkit-font-smoothing:antialiased;}
+  body{max-width:480px;margin:0 auto;min-height:100vh;position:relative;background:radial-gradient(900px 500px at 80% -10%,rgba(52,211,153,0.10),transparent 60%),radial-gradient(700px 400px at -10% 100%,rgba(251,191,36,0.06),transparent 55%),var(--bg);}
+  .app{padding:0 0 96px;min-height:100vh;}
+  .screen{display:none;animation:fade .4s ease both;}
+  .screen.active{display:block;}
+  @keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+  header{padding:22px 22px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;background:linear-gradient(180deg,var(--bg) 60%,transparent);}
+  .brand{display:flex;align-items:center;gap:11px;}
+  .brand .logo{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,var(--leaf),var(--leaf-dim));display:grid;place-items:center;box-shadow:0 6px 18px rgba(52,211,153,0.30);}
+  .brand .logo svg{width:21px;height:21px;}
+  .brand h1{font-size:19px;font-weight:800;letter-spacing:-0.4px;}
+  .brand .sub{font-size:11px;color:var(--text-faint);font-weight:500;letter-spacing:0.3px;margin-top:1px;}
+  .hdr-badge{font-family:'Space Mono',monospace;font-size:10px;color:var(--leaf);background:rgba(52,211,153,0.10);border:1px solid rgba(52,211,153,0.25);padding:5px 9px;border-radius:8px;font-weight:700;}
+  .sec-title{padding:8px 22px 14px;}
+  .sec-title h2{font-size:23px;font-weight:800;letter-spacing:-0.6px;}
+  .sec-title p{font-size:13px;color:var(--text-dim);margin-top:4px;line-height:1.5;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin:0 22px 16px;overflow:hidden;}
+  .card-pad{padding:20px;}
+  .capture-zone{margin:4px 22px 16px;border:2px dashed var(--line);border-radius:24px;background:linear-gradient(180deg,var(--card),var(--bg-elev));padding:38px 24px;text-align:center;transition:border-color .3s,transform .2s;}
+  .capture-zone:active{transform:scale(0.99);border-color:var(--leaf-dim);}
+  .capture-ring{width:92px;height:92px;margin:0 auto 18px;border-radius:50%;background:radial-gradient(circle at 50% 40%,rgba(52,211,153,0.18),transparent 70%);display:grid;place-items:center;position:relative;}
+  .capture-ring::before{content:'';position:absolute;inset:0;border-radius:50%;border:2px solid rgba(52,211,153,0.30);animation:pulse 2.6s ease-out infinite;}
+  @keyframes pulse{0%{transform:scale(0.85);opacity:1;}100%{transform:scale(1.35);opacity:0;}}
+  .capture-ring svg{width:40px;height:40px;color:var(--leaf);}
+  .capture-zone h3{font-size:17px;font-weight:700;margin-bottom:6px;}
+  .capture-zone p{font-size:13px;color:var(--text-dim);line-height:1.5;}
+  .btn-row{display:flex;gap:12px;margin:0 22px 16px;}
+  .btn{flex:1;border:none;border-radius:15px;padding:16px 14px;font-family:'Sora',sans-serif;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:transform .15s,filter .2s;}
+  .btn:active{transform:scale(0.97);}
+  .btn:disabled{opacity:0.5;cursor:not-allowed;}
+  .btn svg{width:18px;height:18px;}
+  .btn-primary{background:linear-gradient(135deg,var(--leaf),var(--leaf-dim));color:#04140d;box-shadow:0 8px 20px rgba(52,211,153,0.28);}
+  .btn-ghost{background:var(--card-hi);color:var(--text);border:1px solid var(--line);}
+  .model-toggle{display:flex;gap:6px;background:var(--bg-elev);border:1px solid var(--line);border-radius:13px;padding:5px;margin:0 22px 18px;}
+  .model-toggle button{flex:1;border:none;background:transparent;color:var(--text-dim);font-family:'Sora',sans-serif;font-size:12.5px;font-weight:700;padding:11px 8px;border-radius:9px;cursor:pointer;transition:all .25s;}
+  .model-toggle button.on{background:var(--card-hi);color:var(--leaf);box-shadow:0 2px 8px rgba(0,0,0,0.3);}
+  .analyzing{text-align:center;padding:60px 30px;}
+  .scanner{width:150px;height:150px;margin:0 auto 28px;border-radius:24px;position:relative;overflow:hidden;background:var(--card-hi);border:1px solid var(--line);}
+  .scanner img{width:100%;height:100%;object-fit:cover;opacity:0.5;}
+  .scan-line{position:absolute;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,var(--leaf),transparent);box-shadow:0 0 14px 3px rgba(52,211,153,0.6);animation:scan 1.5s ease-in-out infinite;}
+  @keyframes scan{0%,100%{top:8%;}50%{top:90%;}}
+  .analyzing h3{font-size:18px;font-weight:700;margin-bottom:8px;}
+  .analyzing p{font-size:13px;color:var(--text-dim);font-family:'Space Mono',monospace;}
+  .dots span{animation:blink 1.4s infinite both;}
+  .dots span:nth-child(2){animation-delay:.2s;}
+  .dots span:nth-child(3){animation-delay:.4s;}
+  @keyframes blink{0%,80%,100%{opacity:0;}40%{opacity:1;}}
+  .result-hero{margin:4px 22px 16px;border-radius:24px;overflow:hidden;position:relative;height:220px;border:1px solid var(--line);}
+  .result-hero img{width:100%;height:100%;object-fit:cover;}
+  .result-hero .overlay{position:absolute;inset:0;background:linear-gradient(180deg,transparent 30%,rgba(10,20,16,0.95));display:flex;flex-direction:column;justify-content:flex-end;padding:20px;}
+  .result-hero .cat-icon{width:52px;height:52px;border-radius:14px;background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);display:grid;place-items:center;margin-bottom:12px;backdrop-filter:blur(8px);}
+  .result-hero .cat-icon svg{width:28px;height:28px;color:var(--leaf);}
+  .result-hero .label{font-size:30px;font-weight:800;text-transform:capitalize;letter-spacing:-0.8px;}
+  .result-hero .conf{font-family:'Space Mono',monospace;font-size:13px;color:var(--leaf);margin-top:2px;font-weight:700;}
+  .prob-row{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+  .prob-row:last-child{margin-bottom:0;}
+  .prob-name{width:74px;font-size:12.5px;font-weight:600;text-transform:capitalize;color:var(--text-dim);}
+  .prob-track{flex:1;height:8px;background:var(--bg-elev);border-radius:6px;overflow:hidden;}
+  .prob-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--leaf-dim),var(--leaf));width:0;transition:width 1s cubic-bezier(.2,.8,.2,1);}
+  .prob-val{width:50px;text-align:right;font-family:'Space Mono',monospace;font-size:11.5px;color:var(--text-dim);font-weight:700;}
+  .disposal{display:flex;gap:13px;align-items:flex-start;background:rgba(251,191,36,0.07);border:1px solid rgba(251,191,36,0.20);border-radius:15px;padding:16px;margin:0 22px 16px;}
+  .disposal svg{width:20px;height:20px;color:var(--amber);flex-shrink:0;margin-top:1px;}
+  .disposal .d-t{font-size:13px;font-weight:700;color:var(--amber);margin-bottom:3px;}
+  .disposal .d-b{font-size:12.5px;color:var(--text-dim);line-height:1.55;}
+  .metric-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 22px 16px;}
+  .metric-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;}
+  .metric-card .m-label{font-size:11px;color:var(--text-faint);font-weight:600;letter-spacing:0.4px;text-transform:uppercase;}
+  .metric-card .m-val{font-size:26px;font-weight:800;margin-top:7px;font-family:'Space Mono',monospace;}
+  .metric-card .m-val.leaf{color:var(--leaf);}
+  .metric-card .m-val.amber{color:var(--amber);}
+  .metric-card .m-sub{font-size:11px;color:var(--text-dim);margin-top:3px;}
+  .cmp-bar{margin-top:14px;}
+  .cmp-bar .cmp-l{display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;color:var(--text-dim);font-weight:600;}
+  .cmp-track{height:9px;background:var(--bg-elev);border-radius:6px;overflow:hidden;display:flex;}
+  .cmp-track i{height:100%;display:block;}
+  table.cm{width:100%;border-collapse:collapse;font-size:10.5px;font-family:'Space Mono',monospace;}
+  table.cm th,table.cm td{padding:7px 4px;text-align:center;}
+  table.cm th{color:var(--text-faint);font-weight:700;font-size:9.5px;}
+  table.cm td.lbl{color:var(--text-faint);font-weight:700;text-align:right;padding-right:8px;}
+  table.cm td.cell{border-radius:5px;color:var(--text);font-weight:700;}
+  .tabs{display:flex;gap:6px;margin:0 22px 16px;background:var(--bg-elev);border:1px solid var(--line);border-radius:13px;padding:5px;}
+  .tabs button{flex:1;border:none;background:transparent;color:var(--text-dim);font-family:'Sora';font-size:12px;font-weight:700;padding:10px 6px;border-radius:9px;cursor:pointer;transition:all .2s;}
+  .tabs button.on{background:var(--card-hi);color:var(--leaf);}
+  .list-row{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--line);}
+  .list-row:last-child{border-bottom:none;}
+  .list-row .lr-name{font-size:13px;font-weight:600;}
+  .list-row .lr-sub{font-size:11px;color:var(--text-faint);margin-top:2px;}
+  .list-row .lr-val{font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--leaf);}
+  .about-hero{margin:4px 22px 18px;padding:26px 22px;border-radius:22px;background:linear-gradient(135deg,var(--card-hi),var(--card));border:1px solid var(--line);}
+  .about-hero h3{font-size:18px;font-weight:800;line-height:1.35;letter-spacing:-0.4px;}
+  .about-hero p{font-size:13px;color:var(--text-dim);margin-top:10px;line-height:1.6;}
+  .chip-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;}
+  .chip{font-size:11px;font-weight:700;padding:7px 12px;border-radius:9px;background:rgba(52,211,153,0.10);color:var(--leaf);border:1px solid rgba(52,211,153,0.22);}
+  .info-line{display:flex;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--line);font-size:13px;}
+  .info-line:last-child{border-bottom:none;}
+  .info-line .il-k{color:var(--text-dim);}
+  .info-line .il-v{font-weight:700;font-family:'Space Mono',monospace;}
+  nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:rgba(15,29,23,0.92);backdrop-filter:blur(20px);border-top:1px solid var(--line);display:flex;padding:10px 14px calc(10px + env(safe-area-inset-bottom));z-index:100;}
+  nav button{flex:1;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;color:var(--text-faint);font-family:'Sora';font-size:10.5px;font-weight:600;padding:7px 0;transition:color .2s;}
+  nav button svg{width:22px;height:22px;transition:transform .2s;}
+  nav button.on{color:var(--leaf);}
+  nav button.on svg{transform:translateY(-2px);}
+  nav button.fab{flex:0 0 auto;margin-top:-28px;}
+  nav button.fab .fab-c{width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,var(--leaf),var(--leaf-dim));display:grid;place-items:center;box-shadow:0 8px 22px rgba(52,211,153,0.4);border:4px solid var(--bg);}
+  nav button.fab .fab-c svg{width:26px;height:26px;color:#04140d;}
+  .hidden-input{display:none;}
+  .fade-up{animation:fup .5s ease both;}
+  @keyframes fup{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:none;}}
+  .loader-overlay{position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;max-width:480px;margin:0 auto;}
+  .loader-overlay .spin{width:48px;height:48px;border:3px solid var(--line);border-top-color:var(--leaf);border-radius:50%;animation:rot 0.9s linear infinite;}
+  @keyframes rot{to{transform:rotate(360deg);}}
+  .loader-overlay p{font-size:13px;color:var(--text-dim);font-family:'Space Mono',monospace;}
+  .banner{margin:0 22px 16px;padding:13px 16px;border-radius:13px;font-size:12px;line-height:1.5;display:flex;gap:10px;align-items:flex-start;}
+  .banner.warn{background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.22);color:var(--amber);}
+  .banner.err{background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.25);color:var(--danger);}
+  .banner svg{width:16px;height:16px;flex-shrink:0;margin-top:1px;}
+</style>
+</head>
+<body>
+
+<div class="loader-overlay" id="loader">
+  <div class="spin"></div>
+  <p id="loaderTxt">Loading models…</p>
+</div>
+
+<div class="app">
+  <section class="screen active" id="s-home">
+    <header>
+      <div class="brand">
+        <div class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 0 1 9-9m9 9a9 9 0 0 1-9 9" stroke="#04140d" stroke-width="2.4" stroke-linecap="round"/><path d="M12 7v5l3.5 2" stroke="#04140d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div><h1>EcoSort</h1><div class="sub">AI Waste Classification</div></div>
+      </div>
+      <div class="hdr-badge" id="hdrModel">MOBILENETV2</div>
+    </header>
+    <div class="sec-title">
+      <h2>Classify your waste</h2>
+      <p>Take a photo or upload an image. The trained model runs on-device and identifies the material.</p>
+    </div>
+    <div class="model-toggle" id="modelToggle">
+      <button class="on" data-model="mobilenet">MobileNetV2</button>
+      <button data-model="efficientnet">EfficientNet-B0</button>
+    </div>
+    <div class="capture-zone" id="dropZone">
+      <div class="capture-ring"><svg viewBox="0 0 24 24" fill="none"><path d="M3 9a2 2 0 0 1 2-2h2l1.6-2h6.8L19 7h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="13" cy="13" r="3.4" stroke="currentColor" stroke-width="2"/></svg></div>
+      <h3>Point at the garbage</h3>
+      <p>Single item, decent lighting works best</p>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btnCamera"><svg viewBox="0 0 24 24" fill="none"><path d="M3 9a2 2 0 0 1 2-2h2l1.6-2h6.8L19 7h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="13" cy="13" r="3.4" stroke="currentColor" stroke-width="2.2"/></svg>Camera</button>
+      <button class="btn btn-ghost" id="btnUpload"><svg viewBox="0 0 24 24" fill="none"><path d="M12 16V4m0 0L7 9m5-5 5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>Upload</button>
+    </div>
+    <input type="file" accept="image/*" capture="environment" class="hidden-input" id="inCamera">
+    <input type="file" accept="image/*" class="hidden-input" id="inUpload">
+    <div class="card"><div class="card-pad">
+      <div style="font-size:12px;color:var(--text-faint);font-weight:700;letter-spacing:0.4px;text-transform:uppercase;margin-bottom:14px;">Detectable Categories</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+        <div class="cat-mini" data-c="cardboard"></div><div class="cat-mini" data-c="glass"></div><div class="cat-mini" data-c="metal"></div>
+        <div class="cat-mini" data-c="paper"></div><div class="cat-mini" data-c="plastic"></div><div class="cat-mini" data-c="trash"></div>
+      </div>
+    </div></div>
+  </section>
+
+  <section class="screen" id="s-analyzing">
+    <header><div class="brand"><div class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 0 1 9-9m9 9a9 9 0 0 1-9 9" stroke="#04140d" stroke-width="2.4" stroke-linecap="round"/><path d="M12 7v5l3.5 2" stroke="#04140d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div><h1>EcoSort</h1><div class="sub">Analyzing…</div></div></div></header>
+    <div class="analyzing">
+      <div class="scanner"><img id="scanImg" alt=""><div class="scan-line"></div></div>
+      <h3>Running inference</h3>
+      <p id="scanModel">MobileNetV2 · 224×224<span class="dots"><span>.</span><span>.</span><span>.</span></span></p>
+    </div>
+  </section>
+
+  <section class="screen" id="s-result">
+    <header><div class="brand"><div class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 0 1 9-9m9 9a9 9 0 0 1-9 9" stroke="#04140d" stroke-width="2.4" stroke-linecap="round"/><path d="M12 7v5l3.5 2" stroke="#04140d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div><h1>Result</h1><div class="sub" id="resModel">MobileNetV2</div></div></div><div class="hdr-badge" id="resTime">— ms</div></header>
+    <div class="result-hero"><img id="resImg" alt=""><div class="overlay"><div class="cat-icon" id="resIcon"></div><div class="label" id="resLabel">—</div><div class="conf" id="resConf">—</div></div></div>
+    <div class="disposal"><svg viewBox="0 0 24 24" fill="none"><path d="M12 9v4m0 4h.01M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><div><div class="d-t" id="dispT">Disposal Guidance</div><div class="d-b" id="dispB">—</div></div></div>
+    <div class="card"><div class="card-pad"><div style="font-size:12px;color:var(--text-faint);font-weight:700;letter-spacing:0.4px;text-transform:uppercase;margin-bottom:16px;">Class Probabilities</div><div id="probList"></div></div></div>
+    <div class="btn-row"><button class="btn btn-primary" id="btnAgain"><svg viewBox="0 0 24 24" fill="none"><path d="M3 9a2 2 0 0 1 2-2h2l1.6-2h6.8L19 7h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="13" cy="13" r="3.4" stroke="currentColor" stroke-width="2.2"/></svg>Classify Another</button></div>
+  </section>
+
+  <section class="screen" id="s-metrics">
+    <header><div class="brand"><div class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M4 19V5m0 14h16M8 16v-5m4 5V8m4 8v-3" stroke="#04140d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div><h1>Model Metrics</h1><div class="sub">From the study evaluation</div></div></div></header>
+    <div class="tabs" id="metricTabs"><button class="on" data-m="mobilenet">MobileNetV2</button><button data-m="efficientnet">EfficientNet-B0</button></div>
+    <div class="metric-grid" id="metricGrid"></div>
+    <div class="card"><div class="card-pad">
+      <div style="font-size:12px;color:var(--text-faint);font-weight:700;letter-spacing:0.4px;text-transform:uppercase;margin-bottom:6px;">Accuracy Comparison</div>
+      <div class="cmp-bar"><div class="cmp-l"><span>MobileNetV2</span><span>84.74%</span></div><div class="cmp-track"><i style="width:84.74%;background:linear-gradient(90deg,var(--leaf-dim),var(--leaf));"></i></div></div>
+      <div class="cmp-bar"><div class="cmp-l"><span>EfficientNet-B0</span><span>89.21%</span></div><div class="cmp-track"><i style="width:89.21%;background:linear-gradient(90deg,#b78b1e,var(--amber));"></i></div></div>
+      <div style="font-size:12px;color:var(--text-dim);margin-top:14px;line-height:1.55;">EfficientNet-B0 is ~4.5% more accurate but uses <b style="color:var(--text);">79% more parameters</b> (4.06M vs 2.27M). MobileNetV2 offers a better accuracy-to-size ratio for mobile deployment.</div>
+    </div></div>
+    <div class="card"><div class="card-pad"><div style="font-size:12px;color:var(--text-faint);font-weight:700;letter-spacing:0.4px;text-transform:uppercase;margin-bottom:16px;">Per-Class F1-Score</div><div id="f1List"></div></div></div>
+  </section>
+
+  <section class="screen" id="s-matrix">
+    <header><div class="brand"><div class="logo"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="#04140d" stroke-width="2.4"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18" stroke="#04140d" stroke-width="2.4"/></svg></div><div><h1>Confusion Matrix</h1><div class="sub">Test set predictions</div></div></div></header>
+    <div class="tabs" id="cmTabs"><button class="on" data-m="mobilenet">MobileNetV2</button><button data-m="efficientnet">EfficientNet-B0</button></div>
+    <div class="card"><div class="card-pad"><div style="font-size:11.5px;color:var(--text-dim);margin-bottom:14px;line-height:1.5;">Rows = true label, columns = predicted. Diagonal = correct. Darker green = higher count.</div><div id="cmWrap" style="overflow-x:auto;"></div></div></div>
+    <div class="card"><div class="card-pad"><div style="font-size:12px;color:var(--text-faint);font-weight:700;letter-spacing:0.4px;text-transform:uppercase;margin-bottom:12px;">Most Common Confusions</div><div id="confList"></div></div></div>
+  </section>
+
+  <section class="screen" id="s-about">
+    <header><div class="brand"><div class="logo"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#04140d" stroke-width="2.4"/><path d="M12 11v5m0-8h.01" stroke="#04140d" stroke-width="2.6" stroke-linecap="round"/></svg></div><div><h1>About</h1><div class="sub">Research project</div></div></div></header>
+    <div class="about-hero">
+      <h3>MobileNetV2 Transfer Learning for Garbage Classification in Automated Waste Segregation</h3>
+      <p>An undergraduate research project applying transfer learning to classify waste into six material categories. This app runs the actual trained models on-device.</p>
+      <div class="chip-row"><span class="chip">TrashNet</span><span class="chip">MobileNetV2</span><span class="chip">EfficientNet-B0</span><span class="chip">TensorFlow.js</span></div>
+    </div>
+    <div class="card"><div class="card-pad">
+      <div style="font-size:12px;color:var(--text-faint);font-weight:700;letter-spacing:0.4px;text-transform:uppercase;margin-bottom:6px;">Study Configuration</div>
+      <div class="info-line"><span class="il-k">Dataset</span><span class="il-v">TrashNet · 2,527</span></div>
+      <div class="info-line"><span class="il-k">Categories</span><span class="il-v">6 classes</span></div>
+      <div class="info-line"><span class="il-k">Input size</span><span class="il-v">224 × 224</span></div>
+      <div class="info-line"><span class="il-k">Split</span><span class="il-v">70 / 15 / 15</span></div>
+      <div class="info-line"><span class="il-k">Test images</span><span class="il-v">380</span></div>
+      <div class="info-line"><span class="il-k">Inference</span><span class="il-v">On-device</span></div>
+    </div></div>
+    <div class="card"><div class="card-pad">
+      <div style="font-size:12px;color:var(--text-faint);font-weight:700;letter-spacing:0.4px;text-transform:uppercase;margin-bottom:10px;">How It Works</div>
+      <div style="font-size:12.5px;color:var(--text-dim);line-height:1.6;">When you upload or capture an image, it is resized to 224×224 and passed through the actual trained model (converted to TensorFlow.js). The model outputs a probability for each of the six categories, and the highest is shown as the prediction. No internet or server is used after the page loads.</div>
+    </div></div>
+  </section>
+
+  <nav id="nav">
+    <button class="on" data-go="s-home"><svg viewBox="0 0 24 24" fill="none"><path d="M3 11l9-7 9 7M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</button>
+    <button data-go="s-metrics"><svg viewBox="0 0 24 24" fill="none"><path d="M4 19V5m0 14h16M8 16v-5m4 5V8m4 8v-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Metrics</button>
+    <button class="fab" data-go="s-home" id="navFab"><div class="fab-c"><svg viewBox="0 0 24 24" fill="none"><path d="M3 9a2 2 0 0 1 2-2h2l1.6-2h6.8L19 7h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="13" cy="13" r="3.4" stroke="currentColor" stroke-width="2.2"/></svg></div></button>
+    <button data-go="s-matrix"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/><path d="M3 9h18M9 3v18" stroke="currentColor" stroke-width="2"/></svg>Matrix</button>
+    <button data-go="s-about"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 11v5m0-8h.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>About</button>
+  </nav>
+</div>
+
+<script>
+//Class order MUST match training (alphabetical, as in the notebook)
+const CATS = ['cardboard','glass','metal','paper','plastic','trash'];
+
+const REPORT = {
+  mobilenet:{name:'MobileNetV2',acc:0.8474,paramsShort:'2.27M',precM:0.8408,recM:0.8243,f1M:0.8306,
+    cls:{cardboard:{p:0.8769,r:0.9500,f:0.9120,s:60},glass:{p:0.7922,r:0.8026,f:0.7974,s:76},metal:{p:0.8065,r:0.8065,f:0.8065,s:62},paper:{p:0.9518,r:0.8876,f:0.9186,s:89},plastic:{p:0.8052,r:0.8493,f:0.8267,s:73},trash:{p:0.8125,r:0.6500,f:0.7222,s:20}},
+    cm:[[57,0,0,2,1,0],[0,61,5,0,9,1],[1,9,50,0,2,0],[6,0,1,79,1,2],[0,7,4,0,62,0],[1,0,2,2,2,13]]},
+  efficientnet:{name:'EfficientNet-B0',acc:0.8921,paramsShort:'4.06M',precM:0.8855,recM:0.8759,f1M:0.8795,
+    cls:{cardboard:{p:0.9492,r:0.9333,f:0.9412,s:60},glass:{p:0.9118,r:0.8158,f:0.8611,s:76},metal:{p:0.8382,r:0.9194,f:0.8769,s:62},paper:{p:0.9121,r:0.9326,f:0.9222,s:89},plastic:{p:0.8684,r:0.9041,f:0.8859,s:73},trash:{p:0.8333,r:0.7500,f:0.7895,s:20}},
+    cm:[[56,0,1,2,0,1],[0,62,6,2,6,0],[0,2,57,1,2,0],[3,0,1,83,1,1],[0,4,2,0,66,1],[0,0,1,3,1,15]]}
+};
+const DISPOSAL={
+  cardboard:['Recyclable — Paper Stream','Flatten boxes and keep them dry. Remove tape and heavy grease before placing in the cardboard recycling bin.'],
+  glass:['Recyclable — Glass Stream','Rinse bottles and jars. Separate by color if required. Wrap and label broken glass separately.'],
+  metal:['Recyclable — Metal Stream','Rinse cans and containers. Aluminum and steel are highly recyclable. Crushing cans saves space.'],
+  paper:['Recyclable — Paper Stream','Keep paper clean and dry. Soiled or food-stained paper contaminates the batch.'],
+  plastic:['Recyclable — Check Resin Code','Rinse containers and check the recycling number. Not all plastics are accepted locally — verify with your LGU.'],
+  trash:['General Waste — Non-Recyclable','This item is likely non-recyclable. Dispose in general waste; separate any recyclable parts first.']
+};
+const ICONS={
+  cardboard:'<path d="M3 7l9-4 9 4-9 4-9-4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3 7v10l9 4 9-4V7M12 11v10" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  glass:'<path d="M7 3h10l-1 7a4 4 0 0 1-8 0L7 3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 17v4m-3 0h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  metal:'<path d="M8 3h8v4a4 4 0 0 1-1 2 4 4 0 0 0 0 6 4 4 0 0 1 1 2v4H8v-4a4 4 0 0 1 1-2 4 4 0 0 0 0-6 4 4 0 0 1-1-2V3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  paper:'<path d="M6 3h8l4 4v14H6V3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 3v4h4M9 12h6M9 16h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  plastic:'<path d="M9 3h6v3l2 2v13H7V8l2-2V3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 13h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  trash:'<path d="M4 7h16M9 7V4h6v3m-9 0 1 14h10l1-14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+};
+
+let currentModel='mobilenet';
+let lastImageURL=null;
+const models={mobilenet:null,efficientnet:null};
+
+function show(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('nav button[data-go]').forEach(b=>b.classList.toggle('on',b.dataset.go===id&&!b.classList.contains('fab')));
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>show(b.dataset.go)));
+
+document.getElementById('modelToggle').addEventListener('click',e=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  currentModel=btn.dataset.model;
+  document.querySelectorAll('#modelToggle button').forEach(x=>x.classList.toggle('on',x===btn));
+  document.getElementById('hdrModel').textContent=currentModel==='mobilenet'?'MOBILENETV2':'EFFICIENTNET-B0';
+});
+
+document.querySelectorAll('.cat-mini').forEach(el=>{
+  const c=el.dataset.c;
+  el.style.cssText='background:var(--bg-elev);border:1px solid var(--line);border-radius:13px;padding:13px 8px;text-align:center;';
+  el.innerHTML='<svg viewBox="0 0 24 24" fill="none" style="width:24px;height:24px;color:var(--leaf);margin-bottom:7px;">'+ICONS[c]+'</svg><div style="font-size:11.5px;font-weight:600;text-transform:capitalize;color:var(--text-dim);">'+c+'</div>';
+});
+
+document.getElementById('btnCamera').addEventListener('click',()=>document.getElementById('inCamera').click());
+document.getElementById('btnUpload').addEventListener('click',()=>document.getElementById('inUpload').click());
+document.getElementById('dropZone').addEventListener('click',()=>document.getElementById('inUpload').click());
+['inCamera','inUpload'].forEach(id=>{
+  document.getElementById(id).addEventListener('change',e=>{
+    const f=e.target.files[0]; if(!f) return;
+    if(lastImageURL) URL.revokeObjectURL(lastImageURL);
+    lastImageURL=URL.createObjectURL(f);
+    classify(lastImageURL);
+  });
+});
+
+//REAL INFERENCE
+async function classify(imgURL){
+  const M=REPORT[currentModel];
+  document.getElementById('scanImg').src=imgURL;
+  document.getElementById('scanModel').innerHTML=M.name+' · 224×224<span class="dots"><span>.</span><span>.</span><span>.</span></span>';
+  show('s-analyzing');
+
+  const img=new Image();
+  img.crossOrigin='anonymous';
+  img.onload=async ()=>{
+    await new Promise(r=>setTimeout(r,400));
+    const t0=performance.now();
+    let probs;
+    try{
+      probs=tf.tidy(()=>{
+        //MobileNetV2: scale [0,255] -> [-1,1]  (x/127.5 - 1)
+        //EfficientNet-B0: raw [0,255]  (normalization is inside the model)
+        let t=tf.browser.fromPixels(img).resizeBilinear([224,224]).toFloat().expandDims(0);
+        if(currentModel==='mobilenet'){ t=t.div(127.5).sub(1); }
+        let out=models[currentModel].predict(t);
+        //Graph models may return a dict-shaped output, unwrap if needed
+        if(!out.dataSync && typeof out==='object'){
+          const keys=Object.keys(out);
+          out=out[keys[0]];
+        }
+        return out.dataSync();
+      });
+    }catch(err){
+      alert('Inference error: '+err.message);
+      show('s-home'); return;
+    }
+    const ms=Math.round(performance.now()-t0);
+    showResult(imgURL,Array.from(probs),ms);
+  };
+  img.onerror=()=>{ alert('Could not load image.'); show('s-home'); };
+  img.src=imgURL;
+}
+
+function showResult(imgURL,probs,ms){
+  const M=REPORT[currentModel];
+  let maxI=0; probs.forEach((p,i)=>{if(p>probs[maxI])maxI=i;});
+  const cls=CATS[maxI];
+  document.getElementById('resImg').src=imgURL;
+  document.getElementById('resModel').textContent=M.name;
+  document.getElementById('resTime').textContent=ms+' ms';
+  document.getElementById('resIcon').innerHTML='<svg viewBox="0 0 24 24" fill="none">'+ICONS[cls]+'</svg>';
+  document.getElementById('resLabel').textContent=cls;
+  document.getElementById('resConf').textContent=(probs[maxI]*100).toFixed(1)+'% confidence';
+  document.getElementById('dispT').textContent=DISPOSAL[cls][0];
+  document.getElementById('dispB').textContent=DISPOSAL[cls][1];
+  const order=CATS.map((c,i)=>({c,p:probs[i]})).sort((a,b)=>b.p-a.p);
+  const pl=document.getElementById('probList'); pl.innerHTML='';
+  order.forEach((o,idx)=>{
+    const row=document.createElement('div'); row.className='prob-row';
+    row.innerHTML='<div class="prob-name">'+o.c+'</div><div class="prob-track"><div class="prob-fill"></div></div><div class="prob-val">'+(o.p*100).toFixed(1)+'%</div>';
+    pl.appendChild(row);
+    setTimeout(()=>{row.querySelector('.prob-fill').style.width=(o.p*100)+'%';},120+idx*90);
+  });
+  show('s-result');
+}
+
+document.getElementById('btnAgain').addEventListener('click',()=>{
+  document.getElementById('inUpload').value='';
+  document.getElementById('inCamera').value='';
+  show('s-home');
+});
+
+//METRICS
+function renderMetrics(model){
+  const M=REPORT[model];
+  const g=document.getElementById('metricGrid');
+  const cards=[['Accuracy',(M.acc*100).toFixed(2)+'%','leaf','overall test set'],['Macro F1',M.f1M.toFixed(4),'leaf','averaged across classes'],['Precision',M.precM.toFixed(4),'amber','macro-averaged'],['Recall',M.recM.toFixed(4),'amber','macro-averaged'],['Parameters',M.paramsShort,'leaf','model size'],['Test Images','380','amber','held-out set']];
+  g.innerHTML=cards.map(c=>'<div class="metric-card fade-up"><div class="m-label">'+c[0]+'</div><div class="m-val '+c[2]+'">'+c[1]+'</div><div class="m-sub">'+c[3]+'</div></div>').join('');
+  document.getElementById('f1List').innerHTML=CATS.map(c=>{const d=M.cls[c];return '<div class="list-row"><div><div class="lr-name" style="text-transform:capitalize">'+c+'</div><div class="lr-sub">P '+d.p.toFixed(3)+' · R '+d.r.toFixed(3)+' · n='+d.s+'</div></div><div class="lr-val">'+d.f.toFixed(4)+'</div></div>';}).join('');
+}
+document.getElementById('metricTabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;document.querySelectorAll('#metricTabs button').forEach(x=>x.classList.toggle('on',x===b));renderMetrics(b.dataset.m);});
+
+//CONFUSION MATRIX
+function renderCM(model){
+  const M=REPORT[model];
+  const max=Math.max(...M.cm.flat());
+  const short={cardboard:'card',glass:'glass',metal:'metal',paper:'paper',plastic:'plas',trash:'trash'};
+  let html='<table class="cm"><tr><th></th>';
+  CATS.forEach(c=>html+='<th>'+short[c]+'</th>'); html+='</tr>';
+  M.cm.forEach((row,i)=>{html+='<tr><td class="lbl">'+short[CATS[i]]+'</td>';row.forEach((v,j)=>{const it=v/max;const correct=i===j;const bg=correct?'rgba(52,211,153,'+(0.15+it*0.75)+')':v>0?'rgba(248,113,113,'+(0.10+it*0.55)+')':'var(--bg-elev)';html+='<td class="cell" style="background:'+bg+'">'+v+'</td>';});html+='</tr>';});
+  html+='</table>';
+  document.getElementById('cmWrap').innerHTML=html;
+  const conf=[]; M.cm.forEach((row,i)=>row.forEach((v,j)=>{if(i!==j&&v>0)conf.push({t:CATS[i],p:CATS[j],v});}));
+  conf.sort((a,b)=>b.v-a.v);
+  document.getElementById('confList').innerHTML=conf.slice(0,5).map(c=>'<div class="list-row"><div><div class="lr-name" style="text-transform:capitalize">'+c.t+' → '+c.p+'</div><div class="lr-sub">true '+c.t+', predicted '+c.p+'</div></div><div class="lr-val" style="color:var(--danger)">'+c.v+'</div></div>').join('');
+}
+document.getElementById('cmTabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;document.querySelectorAll('#cmTabs button').forEach(x=>x.classList.toggle('on',x===b));renderCM(b.dataset.m);});
+
+//LOAD MODELS ON STARTUP
+async function init(){
+  renderMetrics('mobilenet'); renderCM('mobilenet');
+  try{
+    document.getElementById('loaderTxt').textContent='Loading MobileNetV2…';
+    models.mobilenet=await tf.loadGraphModel('./models/mobilenet/model.json');
+    document.getElementById('loaderTxt').textContent='Loading EfficientNet-B0…';
+    models.efficientnet=await tf.loadGraphModel('./models/efficientnet/model.json');
+    document.getElementById('loaderTxt').textContent='Warming up…';
+    //Warm up both models. Use each model's correct input scaling.
+    tf.tidy(()=>{
+      const dummy=tf.zeros([1,224,224,3]);
+      const mnIn=dummy.div(127.5).sub(1);
+      let mnOut=models.mobilenet.predict(mnIn);
+      let efOut=models.efficientnet.predict(dummy);
+      if(!mnOut.dataSync) mnOut=Object.values(mnOut)[0];
+      if(!efOut.dataSync) efOut=Object.values(efOut)[0];
+      mnOut.dataSync(); efOut.dataSync();
+    });
+    document.getElementById('loader').style.display='none';
+  }catch(err){
+    document.getElementById('loader').innerHTML='<div style="padding:30px;text-align:center;"><p style="color:var(--danger);font-size:14px;line-height:1.6;">Could not load model files.<br><br>Make sure the <b>models</b> folder is in the same directory as this HTML file, and that you are running it through a local server (not opening the file directly).<br><br>'+err.message+'</p></div>';
+  }
+}
+window.addEventListener('load',init);
+</script>
+</body>
+</html>
