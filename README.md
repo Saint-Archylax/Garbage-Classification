@@ -1,4 +1,4 @@
-# Garbage Classification
+# Garbage Classification Using MobileNetV2 and EfficientNet-B0
 
 Undergraduate research project. Classifies waste images into six categories — cardboard, glass, metal, paper, plastic, trash — using MobileNetV2 transfer learning, compared against EfficientNet-B0.
 
