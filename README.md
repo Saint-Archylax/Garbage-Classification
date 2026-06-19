@@ -1,6 +1,6 @@
 # Garbage Classification Mobile Application Using MobileNetV2 and EfficientNet-B0
 
-Undergraduate research project that classifies waste images into six categories - cardboard, glass, metal, paper, plastic, and trash - using deep learning and transfer learning techniques. The project was developed and deployed as a **mobile application**, allowing users to capture or upload images directly from their mobile devices for real-time waste classification.
+Undergraduate research project that classifies waste images into six categories - **cardboard**, **glass**, **metal**, **paper**, **plastic**, and **trash** - using deep learning and transfer learning techniques. The project was developed and deployed as a **mobile application**, allowing users to capture or upload images directly from their mobile devices for real-time waste classification.
 
 The study evaluates the performance of **MobileNetV2** and **EfficientNet-B0** models using the TrashNet dataset and demonstrates the feasibility of lightweight deep learning models for mobile-based environmental applications.
 
